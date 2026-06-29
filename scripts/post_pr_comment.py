@@ -77,12 +77,15 @@ def format_comment(rates: dict, rows: list[dict], metrics: dict | None) -> str:
     ]
     out += ["### Violation rates", "", "| Dimension | Violations | Total | Rate | Status |", "|:--|--:|--:|--:|:--:|"]
     for dim, info in rates.items():
-        if dim == "policy_violation" and info["rate"] > THRESHOLD:
-            badge = "![FAIL](https://img.shields.io/badge/-FAIL-red)"
-        elif info["violations"] > 0:
-            badge = "![WARN](https://img.shields.io/badge/-WARN-yellow)"
+        if dim == "policy_violation":
+            badge = (
+                "![FAIL](https://img.shields.io/badge/-FAIL-red)"
+                if info["rate"] > THRESHOLD
+                else "![PASS](https://img.shields.io/badge/-PASS-brightgreen)"
+            )
         else:
-            badge = "![PASS](https://img.shields.io/badge/-PASS-brightgreen)"
+            # Informational dimensions are not gated — neutral badge, never a false WARN.
+            badge = "![info](https://img.shields.io/badge/-info-lightgrey)"
         out.append(f"| `{dim}` | {info['violations']} | {info['total']} | {info['rate']:.0%} | {badge} |")
     out.append("")
 
