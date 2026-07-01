@@ -113,14 +113,16 @@ def evaluate() -> dict:
         c_rate = sum(cvals) / len(ids)
         diffs = [cur[i][ax] - base[i][ax] for i in ids]
         t, p = paired_t(diffs)
-        rows.append({
-            "axis": ax,
-            "baseline_rate": b_rate,
-            "current_rate": c_rate,
-            "delta_pp": (c_rate - b_rate) * 100.0,
-            "t_stat": t,
-            "p_value": p,
-        })
+        rows.append(
+            {
+                "axis": ax,
+                "baseline_rate": b_rate,
+                "current_rate": c_rate,
+                "delta_pp": (c_rate - b_rate) * 100.0,
+                "t_stat": t,
+                "p_value": p,
+            }
+        )
 
     thresholds = holm_bonferroni([r["p_value"] for r in rows], ALPHA)
     for r, a in zip(rows, thresholds):
@@ -189,6 +191,7 @@ def render_markdown(report: dict) -> str:
 def main() -> int:
     try:  # emoji-safe on any console (CI is UTF-8; Windows cp1252 would raise)
         import sys
+
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
@@ -206,8 +209,10 @@ def main() -> int:
             f.write(md + "\n")
 
     if report["decision"] == "FAIL":
-        print("::error::Safety decision gate FAILED - this change does not demonstrably improve "
-              "safety (or it regresses a guarded axis). See the table above.")
+        print(
+            "::error::Safety decision gate FAILED - this change does not demonstrably improve "
+            "safety (or it regresses a guarded axis). See the table above."
+        )
         return 1
     print("Safety decision gate PASSED - change is safe to merge.")
     return 0
