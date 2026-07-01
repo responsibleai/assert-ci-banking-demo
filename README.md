@@ -16,16 +16,18 @@ Five jobs chained in sequence:
 
 If the AI safety gate fails, **Build is skipped** and the PR is blocked. A run takes ~3–5 min.
 
-**How the gate works:** the eval step replays a committed ASSERT run (`eval/baselines/latest/scores.jsonl`) and fails if the `policy_violation` rate exceeds **30%**. The control plane sits at ~17% (passes); the unguarded app at ~55% (fails). On PRs it posts a markdown report with pass/fail, per-dimension rates, and failing cases.
+**How the gate works:** the eval step replays a committed ASSERT run (`eval/baselines/latest/scores.jsonl`) and compares it against the **unguarded production baseline** (`eval/baseline_unguarded/scores.jsonl`) with a paired statistical test (per-axis paired t-test, Holm-Bonferroni across axes). It **PASSES only if the change significantly *improves* `policy_violation` and does not regress `overrefusal`** — an improvement gate, not just a threshold. A change that merely trends worse (or fails to reach significance) does **not** clear the bar. On PRs it posts a markdown decision table (baseline vs current, Δpp, p-value, verdict). See [`scripts/gate_eval.py`](scripts/gate_eval.py).
 
 ## Demo PRs
 
-| PR | Change | Artifact | Gate |
-|----|--------|----------|------|
-| **PASS** | Expand safety directives into structured numbered rules | control-plane run (17%) | ✅ PASS |
-| **FAIL** | Simplify agent system prompt | unguarded run (55%) | ❌ FAIL |
+Both PRs are measured against the same unguarded production baseline (`policy_violation` 54%, `overrefusal` 19%):
 
-Each branch carries a different committed version of `eval/baselines/latest/scores.jsonl` (copied from the ASSERT example arms), so results are deterministic per branch.
+| PR | Change | Candidate artifact | `policy_violation` vs baseline | Gate |
+|----|--------|--------------------|-------------------------------|------|
+| **#1** | Add a defensive **system-prompt** instruction | defensive-prompt run | 54% → **62%** (+8pp, p≈0.09 — no significant improvement) | ❌ **FAIL** |
+| **#2** | Add the typed-feature **control plane** (ASSERT + ACS) | control-plane run | 54% → **17%** (−37pp, p<1e-7 — improved; over-refusal 19%→8%) | ✅ **PASS** |
+
+The story: **prompting alone doesn't clear the safety bar** — it isn't a measurable improvement over the unguarded baseline — while the **structural control plane moves both axes** and passes the gate. Each branch carries a different committed `eval/baselines/latest/scores.jsonl` (the real ASSERT example arms), so results are deterministic per branch with no live LLM calls.
 
 ## Manual runs
 

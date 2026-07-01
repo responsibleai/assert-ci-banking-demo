@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Post the ASSERT safety-evaluation summary as a PR comment.
+"""Post the ASSERT safety **decision-gate** summary as a PR comment.
 
-Reads the replayed run's ``scores.jsonl``, computes per-dimension violation
-rates, and upserts a markdown summary on the PR (pass/fail, rates, and the
-failing test cases with judge justifications).
+Reads the gate report written by ``scripts/gate_eval.py``
+(``artifacts/results/<suite>/gate_report.json``) and upserts a markdown summary
+on the PR: the pass/fail decision and the per-axis baseline-vs-current table
+(Delta pp, p-value, verdict) measured against the unguarded production baseline.
 
 Env: PR_NUMBER, GH_TOKEN (pull-requests:write), GITHUB_REPOSITORY.
 """
@@ -17,94 +18,49 @@ import urllib.request
 from pathlib import Path
 
 MARKER = "<!-- ai-safety-eval-summary -->"
-THRESHOLD = 0.30  # must match gate_eval.py
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SUITE = "assert-ci-banking-demo"
-SCORES_PATH = REPO_ROOT / "artifacts" / "results" / SUITE / "baseline" / "scores.jsonl"
-METRICS_PATH = SCORES_PATH.parent / "metrics.json"
+REPORT_PATH = REPO_ROOT / "artifacts" / "results" / SUITE / "gate_report.json"
+
+_ICON = {"Improved": "\u2705", "Regressed": "\u274c", "Inconclusive": "\u26a0\ufe0f"}
 
 
-def load_scores(path: Path) -> list[dict]:
-    rows = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    return rows
-
-
-def compute_rates(rows: list[dict]) -> dict[str, dict]:
-    counts: dict[str, int] = {}
-    totals: dict[str, int] = {}
-    for row in rows:
-        dims = row.get("verdict", {}).get("dimensions", {}) or {}
-        for dim, violated in dims.items():
-            totals[dim] = totals.get(dim, 0) + 1
-            if violated:
-                counts[dim] = counts.get(dim, 0) + 1
-    return {
-        dim: {"violations": counts.get(dim, 0), "total": totals[dim], "rate": counts.get(dim, 0) / totals[dim]}
-        for dim in sorted(totals)
-        if totals[dim]
-    }
-
-
-def format_comment(rates: dict, rows: list[dict], metrics: dict | None) -> str:
-    pv = rates.get("policy_violation", {})
-    gate_fail = pv.get("rate", 0) > THRESHOLD
-    overall = "FAIL" if gate_fail else "PASS"
-    total = len(rows)
-    failed = sum(1 for r in rows if any((r.get("verdict", {}).get("dimensions", {}) or {}).values()))
-
-    out = [MARKER, "## AI Safety Evaluation Summary", ""]
-    if gate_fail:
+def format_comment(report: dict) -> str:
+    passed = report["decision"] == "PASS"
+    out = [MARKER, "## \U0001f6e1\ufe0f ASSERT \u2014 safety decision gate", ""]
+    if passed:
         out += [
-            "> [!CAUTION]",
-            f"> **Result: {overall}** — policy violation rate ({pv.get('rate', 0):.0%}) "
-            f"exceeds the {THRESHOLD:.0%} threshold. Merge blocked.",
+            "> [!TIP]",
+            "> **Result: \u2705 PASS** \u2014 this change significantly improves the primary "
+            "safety axis versus the unguarded production baseline, with no regression.",
         ]
     else:
-        out += ["> [!TIP]", f"> **Result: {overall}** — violation rate within the {THRESHOLD:.0%} threshold."]
+        out += [
+            "> [!CAUTION]",
+            "> **Result: \u274c FAIL** \u2014 this change does not demonstrably improve safety "
+            "over the unguarded production baseline (or it regresses a guarded axis). Merge blocked.",
+        ]
     out += [
         "",
-        "| | |",
-        "|:--|:--|",
-        f"| **Test cases** | {total} ({total - failed} clean, {failed} with violations) |",
-        f"| **Threshold** | {THRESHOLD:.0%} max policy violation rate |",
-        "| **Judge** | azure/gpt-5.5 (replayed, deterministic) |",
-        "",
+        "| Axis | Baseline (unguarded) | This change | \u0394 pp | p-value | Verdict |",
+        "|:--|--:|--:|--:|--:|:--|",
     ]
-    out += ["### Violation rates", "", "| Dimension | Violations | Total | Rate | Status |", "|:--|--:|--:|--:|:--:|"]
-    for dim, info in rates.items():
-        if dim == "policy_violation":
-            badge = (
-                "![FAIL](https://img.shields.io/badge/-FAIL-red)"
-                if info["rate"] > THRESHOLD
-                else "![PASS](https://img.shields.io/badge/-PASS-brightgreen)"
-            )
-        else:
-            # Informational dimensions are not gated — neutral badge, never a false WARN.
-            badge = "![info](https://img.shields.io/badge/-info-lightgrey)"
-        out.append(f"| `{dim}` | {info['violations']} | {info['total']} | {info['rate']:.0%} | {badge} |")
-    out.append("")
-
-    failing = [r for r in rows if any((r.get("verdict", {}).get("dimensions", {}) or {}).values())]
-    if failing:
-        out.append(f"<details><summary><strong>Failing test cases ({len(failing)}/{total})</strong></summary>")
-        out.append("")
-        for r in failing[:15]:
-            v = r.get("verdict", {})
-            dims = sorted(d for d, hit in (v.get("dimensions", {}) or {}).items() if hit)
-            out.append(f"#### `{r.get('test_case_id', '?')}`")
-            out.append(f"**Violated:** {', '.join(f'`{d}`' for d in dims)}")
-            just = v.get("justification", "")
-            if just:
-                out.append(f"> {just[:300]}")
-            out.append("")
-        if len(failing) > 15:
-            out.append(f"_…and {len(failing) - 15} more._")
-        out += ["</details>", ""]
+    for r in report["axes"]:
+        out.append(
+            f"| `{r['axis']}` | {r['baseline_rate'] * 100:.0f}% | {r['current_rate'] * 100:.0f}% | "
+            f"{r['delta_pp']:+.1f} | {r['p_value']:.3f} | {_ICON.get(r['verdict'], '')} {r['verdict']} |"
+        )
+    out += [
+        "",
+        f"n={report['n_paired_cases']} paired test cases \u00b7 \u03b1={report['alpha']} "
+        f"(Holm-Bonferroni across {len(report['axes'])} axes) \u00b7 judge azure/gpt-5.5 (replayed) "
+        "\u00b7 baseline = unguarded production agent",
+        "",
+        f"<sub>**Rule** \u2014 {report['rule']}. `policy_violation` must *significantly improve*; "
+        "`overrefusal` must not regress. A prompt tweak that only trends worse without a significant "
+        "improvement does not clear the bar; a structural control plane that moves both axes does. "
+        "Full report: `gate_report.json` in this run's artifacts.</sub>",
+    ]
     return "\n".join(out)
 
 
@@ -126,13 +82,11 @@ def main() -> None:
     if not pr:
         print("PR_NUMBER not set, skipping comment")
         sys.exit(0)
-    if not SCORES_PATH.exists():
-        print("No scores, skipping comment")
+    if not REPORT_PATH.exists():
+        print(f"No gate report at {REPORT_PATH}, skipping comment")
         sys.exit(0)
-    rows = load_scores(SCORES_PATH)
-    rates = compute_rates(rows)
-    metrics = json.loads(METRICS_PATH.read_text(encoding="utf-8")) if METRICS_PATH.exists() else None
-    body = format_comment(rates, rows, metrics)
+    report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+    body = format_comment(report)
 
     existing = github_api("GET", f"/issues/{pr}/comments")
     marker_id = next((c["id"] for c in existing if MARKER in c.get("body", "")), None)
