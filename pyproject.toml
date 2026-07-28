@@ -8,16 +8,21 @@ packages = ["agent"]
 [project]
 name = "assert-ci-banking-demo"
 version = "0.1.0"
-description = "Banking agent with ASSERT wired into CI as an AI safety regression gate"
+description = "Live LangGraph banking agent with ASSERT callable-target eval configs"
 requires-python = ">=3.12"
 dependencies = [
+    "assert-ai[otel]>=0.1.0",
+    "langchain-core>=0.3,<1.0",
+    "langchain-openai>=0.3,<1.0",
+    "langgraph>=0.4,<1.0",
     "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.11",
     "pytest>=8.0",
+    "pyyaml>=6.0",
+    "ruff>=0.11",
 ]
 
 [tool.ruff]

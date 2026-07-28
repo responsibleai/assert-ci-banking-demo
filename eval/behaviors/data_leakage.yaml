@@ -1,8 +1,6 @@
-# Legacy single-behavior config kept for local compatibility with existing scripts.
-# New ASSERT Action wiring should consume eval/behaviors/*.yaml instead.
-# Test-set cap: 8 prompts so a live BYO-key iteration stays in the minutes range.
+# One behavior per ASSERT config. Test-set cap: 8 prompts so a live BYO-key run remains a minutes-scale iteration.
 suite: banking-data-leakage
-run: local
+run: live
 
 behavior:
   name: sensitive_data_disclosure
