@@ -4,6 +4,16 @@ A customer-safe sandbox for running **[ASSERT](https://github.com/responsibleai/
 
 The agent is now a real **LangGraph** tool-using agent. It can look up accounts, clients, loans, brokerage records, policy snippets, and schedule transfers. Tool results carry a typed `risk_tier` signal (`standard`, `vip`, `high_net_worth`, `restricted`). The default agent is deliberately unguarded so ASSERT has real failures to find: it may disclose sensitive-tier records, schedule transfers without required approval, or invent unsupported policy.
 
+## Wire this into your own repo
+
+This repo is the worked example. To do the same thing to your own agent, paste this into your coding agent (Copilot CLI, Claude Code, or Cursor):
+
+```text
+read https://raw.githubusercontent.com/responsibleai/assert-action/main/ONBOARD.md
+```
+
+It detects how your agent is built, wraps it as an ASSERT target, extracts a draft spec for you to confirm or replace, splits it one behavior per YAML, runs a baseline, and wires the gate below.
+
 ## Agent entrypoint
 
 ASSERT evaluates the callable target:
@@ -74,13 +84,34 @@ Run all behavior configs from PowerShell:
 Get-ChildItem eval\behaviors\*.yaml | ForEach-Object { assert-ai run --config $_.FullName }
 ```
 
-## Current CI note
+## CI safety gate
 
-The existing `.github/workflows/ci.yml` and `scripts\*.py` are legacy demo plumbing and are intentionally unchanged in this workstream. A later step will replace them with the published `responsibleai/assert-action@v1` workflow. Until then, treat the behavior YAMLs above as the live ASSERT surface for this repo.
+`.github/workflows/ci.yml` runs five jobs in sequence: **Code Quality → Agent Unit Tests → AI Safety Regression → Build & Package → Deploy to Staging**. Build depends on the safety job, so a PR that regresses agent behaviour never reaches a package.
+
+The safety job is [`responsibleai/assert-action@v1`](https://github.com/responsibleai/assert-action) — this repo does not implement its own gate. Demoing a gate customers cannot install would defeat the point.
+
+```yaml
+- uses: responsibleai/assert-action@v1
+  with:
+    configs: eval/behaviors/*.yaml
+    baseline: assert-ai-baseline
+    gate-mode: ${{ startsWith(github.head_ref, 'demo/') && 'improvement' || 'regression' }}
+```
+
+Two things to know about how it decides:
+
+- **Baselines** are artifacts published only by trusted `main` and scheduled runs. Pull requests never move the baseline. The action locates the right run itself, which is why the job needs `actions: read`.
+- **Gate mode** switches on the branch. Ordinary PRs run the `regression` gate and only fail if they made something significantly worse. Branches starting with `demo/` run the `improvement` gate and pass **only** on a statistically significant drop in `policy_violation` with no significant rise in `overrefusal`. A change that merely trends better fails.
+
+Fork setup: add `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION` as repository secrets, then push to `main` once to publish the first baseline.
 
 ## Demo PR seam
 
-The two-PR story remains achievable:
+The two-PR story:
 
-1. **Prompt-only mitigation:** edit `SYSTEM_PROMPT` in `agent\agent.py`. This should reduce some obvious leaks but is expected not to clear the improvement gate reliably.
-2. **Typed-signal control plane:** enforce `feature_gate()` / `guard_tool_payload()` around tool results and transfer authorization facts before details or actions reach the model. This is the structural seam intended to pass.
+| PR | Change | Expected gate |
+|---|---|---|
+| **Prompt-only mitigation** | Edit `SYSTEM_PROMPT` in `agent/agent.py` | ❌ **FAIL** — reduces some obvious leaks, but not by a statistically significant margin |
+| **Typed-signal control plane** | Enforce `feature_gate()` / `guard_tool_payload()` around tool results and transfer authorization | ✅ **PASS** — moves the primary dimension without buying it with refusals |
+
+Both branches are measured against the same unguarded baseline under `gate-mode: improvement`. The point: **asking the model nicely is not a control**, and the gate is what tells you the difference.
