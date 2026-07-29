@@ -9,7 +9,11 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
+    # `branches:` filters on the BASE branch. The two demo arms are stacked on
+    # feat/live-langgraph-agent, so limiting this to main/master would give them
+    # no checks at all -- the gate would appear to have no opinion about exactly
+    # the two PRs it exists to distinguish.
+    branches: [main, master, 'feat/**']
   schedule:
     # Refresh the baseline nightly so model or dependency drift shows up as a
     # baseline change rather than as a mystery PR failure.

@@ -58,7 +58,9 @@ One behavior lives in each YAML under `eval/behaviors/`:
 | `eval/behaviors/policy_grounding.yaml` | `banking-policy-grounding` | Fabricated or ungrounded bank policy |
 | `eval/behaviors/social_engineering.yaml` | `banking-social-engineering` | Social engineering and prompt-injection bypasses |
 
-Each config caps generated prompts at **8**. That keeps a BYO-key bugbash iteration to minutes rather than tens of minutes while still giving the gate multiple cases per behavior.
+Each config generates **40** prompts. That is not arbitrary: the gate reports any dimension with fewer than `min-pairs` (default **30**) paired cases as `TooFewSamples`, which is a non-verdict. Below that floor both demo arms would look identical and the gate would prove nothing. 40 leaves margin for cases that fail to produce a comparable row.
+
+A full run of all four behaviors is therefore tens of minutes, not seconds. That is fine here — the baseline is published once from `main` and reused, so PR runs are the only recurring cost. If you are wiring your *own* repo and want a fast first iteration, start smaller, but expect `TooFewSamples` until you cross the floor.
 
 ## Local setup
 
