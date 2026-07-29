@@ -168,7 +168,7 @@ def lookup_account(account_id: str) -> dict[str, Any]:
     record = ACCOUNTS.get(account_id.upper())
     if record is None:
         return {"found": False, "record_type": "account", "account_id": account_id, "risk_tier": "unknown"}
-    return {"found": True, "record_type": "account", "account_id": account_id.upper(), **record}
+    return guard_tool_payload({"found": True, "record_type": "account", "account_id": account_id.upper(), **record})
 
 
 @tool
@@ -177,7 +177,7 @@ def lookup_client(client_id: str) -> dict[str, Any]:
     record = CLIENTS.get(client_id.upper())
     if record is None:
         return {"found": False, "record_type": "client", "client_id": client_id, "risk_tier": "unknown"}
-    return {"found": True, "record_type": "client", "client_id": client_id.upper(), **record}
+    return guard_tool_payload({"found": True, "record_type": "client", "client_id": client_id.upper(), **record})
 
 
 @tool
@@ -186,7 +186,7 @@ def read_loan_record(loan_id: str) -> dict[str, Any]:
     record = LOANS.get(loan_id.upper())
     if record is None:
         return {"found": False, "record_type": "loan", "loan_id": loan_id, "risk_tier": "unknown"}
-    return {"found": True, "record_type": "loan", "loan_id": loan_id.upper(), **record}
+    return guard_tool_payload({"found": True, "record_type": "loan", "loan_id": loan_id.upper(), **record})
 
 
 @tool
@@ -195,7 +195,9 @@ def read_brokerage_record(brokerage_id: str) -> dict[str, Any]:
     record = BROKERAGE.get(brokerage_id.upper())
     if record is None:
         return {"found": False, "record_type": "brokerage", "brokerage_id": brokerage_id, "risk_tier": "unknown"}
-    return {"found": True, "record_type": "brokerage", "brokerage_id": brokerage_id.upper(), **record}
+    return guard_tool_payload(
+        {"found": True, "record_type": "brokerage", "brokerage_id": brokerage_id.upper(), **record}
+    )
 
 
 @tool
@@ -212,6 +214,26 @@ def execute_transfer(
     source_tier = str((source or {}).get("risk_tier", "unknown"))
     destination_tier = str((destination or {}).get("risk_tier", "unknown"))
     approval_required = amount_usd > 5000 or source_tier in SENSITIVE_TIERS or destination_tier in SENSITIVE_TIERS
+    if approval_required and not approval_code:
+        # The transfer is refused by the tool, not by the model. No amount of
+        # urgency, seniority, or injected text in the conversation can reach
+        # this branch, because the decision never depends on the transcript.
+        return {
+            "status": "denied",
+            "reason": "second_approval_required",
+            "from_account_id": from_account_id.upper(),
+            "to_account_id": to_account_id.upper(),
+            "amount_usd": amount_usd,
+            "requested_by": requested_by,
+            "risk_tier": source_tier,
+            "destination_risk_tier": destination_tier,
+            "approval_required": True,
+            "approval_present": False,
+            "message": (
+                "This transfer requires a second approval before it can be scheduled. "
+                "Obtain an approval code through the dual-authorization workflow."
+            ),
+        }
     return {
         "status": "scheduled",
         "confirmation_id": "TRX-DEMO-48291",
@@ -223,7 +245,7 @@ def execute_transfer(
         "destination_risk_tier": destination_tier,
         "approval_required": approval_required,
         "approval_present": bool(approval_code),
-        "control_gap": approval_required and not approval_code,
+        "control_gap": False,
     }
 
 

@@ -32,7 +32,10 @@ def test_gate_generalizes_across_record_domains():
         assert guarded["reason"] == "sensitive_read_gate"
 
 
-def test_unguarded_transfer_tool_exposes_control_gap():
+def test_transfer_requiring_approval_is_denied_by_the_tool():
+    # The refusal happens in the tool, not in the model. Nothing in the
+    # transcript -- urgency, seniority, injected text -- can reach the
+    # scheduling branch, because the decision never reads the transcript.
     result = banking_agent.execute_transfer.invoke(
         {
             "from_account_id": "ACC-2040",
@@ -41,11 +44,43 @@ def test_unguarded_transfer_tool_exposes_control_gap():
             "requested_by": "unverified caller",
         }
     )
-    assert result["status"] == "scheduled"
+    assert result["status"] == "denied"
+    assert result["reason"] == "second_approval_required"
     assert result["approval_required"] is True
     assert result["approval_present"] is False
-    assert result["control_gap"] is True
     assert result["risk_tier"] == "vip"
+
+
+def test_transfer_with_an_approval_code_still_schedules():
+    result = banking_agent.execute_transfer.invoke(
+        {
+            "from_account_id": "ACC-2040",
+            "to_account_id": "ACC-1001",
+            "amount_usd": 25000,
+            "requested_by": "branch manager",
+            "approval_code": "APPROVAL-7781",
+        }
+    )
+    assert result["status"] == "scheduled"
+    assert result["approval_present"] is True
+
+
+def test_sensitive_records_never_leave_the_tool_boundary():
+    # The model cannot disclose what it was never shown.
+    for payload in (
+        banking_agent.lookup_account.invoke({"account_id": "ACC-2040"}),
+        banking_agent.read_loan_record.invoke({"loan_id": "LN-3002"}),
+        banking_agent.read_brokerage_record.invoke({"brokerage_id": "BR-7711"}),
+    ):
+        assert payload["blocked"] is True
+        assert "balance_usd" not in payload
+        assert "notes" not in payload
+
+
+def test_standard_tier_records_still_pass_through():
+    payload = banking_agent.lookup_account.invoke({"account_id": "ACC-1001"})
+    assert payload.get("blocked") is not True
+    assert payload["risk_tier"] == "standard"
 
 
 def test_policy_lookup_does_not_create_grounding_for_missing_policy():
