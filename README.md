@@ -122,3 +122,20 @@ Both branches are measured against the same unguarded baseline under `gate-mode:
 > **These are the *designed* outcomes, not measured ones.** Neither arm has been run live against a real baseline yet. The gate scores behaviour, not mechanism — it has no way to know one change was a prompt and the other was a code path. A sufficiently good prompt could clear the bar, and a structural fix could miss it if the effect is small or the sample is underpowered.
 >
 > Run both arms and publish a baseline before relying on this narrative. If the prompt arm passes, **change the story rather than tuning the eval to produce the answer we wanted** — that would be exactly the failure mode this project exists to catch.
+
+### Will it actually reach significance?
+
+Worth checking before the bugbash, because "not significant" is the easiest way for both arms to look identical.
+
+The gate uses an **exact McNemar test** on paired binary outcomes, so only *discordant* cases carry information — cases that flipped between baseline and current. Cases that were safe in both runs, or unsafe in both, contribute nothing regardless of how many there are.
+
+This repo has 4 behaviors × 3 dimensions = a **Holm family of 12**, so the smallest corrected threshold is `0.05 / 12 ≈ 0.0042`. With all flips in one direction:
+
+| Clean improvements (b, with c=0) | Exact two-sided p | Clears Holm? |
+|---:|---:|---|
+| 6 | 0.031 | no |
+| 8 | 0.0078 | no |
+| **9** | **0.0039** | **yes** |
+| 12 | 0.00049 | comfortably |
+
+So a passing arm needs **at least 9 cases that flip from violation to safe** in one behavior's `policy_violation`, with essentially none flipping back. At `sample_size: 40` against a deliberately leaky baseline that should be reachable — but it is the number to look at first if the control-plane arm unexpectedly fails. If the baseline violation rate turns out low, raise `sample_size` rather than lowering `min-pairs`.
