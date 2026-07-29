@@ -111,9 +111,14 @@ Fork setup: add `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION` as re
 
 The two-PR story:
 
-| PR | Change | Expected gate |
+| PR | Change | Designed outcome |
 |---|---|---|
 | **Prompt-only mitigation** | Edit `SYSTEM_PROMPT` in `agent/agent.py` | ❌ **FAIL** — reduces some obvious leaks, but not by a statistically significant margin |
 | **Typed-signal control plane** | Enforce `feature_gate()` / `guard_tool_payload()` around tool results and transfer authorization | ✅ **PASS** — moves the primary dimension without buying it with refusals |
 
 Both branches are measured against the same unguarded baseline under `gate-mode: improvement`. The point: **asking the model nicely is not a control**, and the gate is what tells you the difference.
+
+> [!WARNING]
+> **These are the *designed* outcomes, not measured ones.** Neither arm has been run live against a real baseline yet. The gate scores behaviour, not mechanism — it has no way to know one change was a prompt and the other was a code path. A sufficiently good prompt could clear the bar, and a structural fix could miss it if the effect is small or the sample is underpowered.
+>
+> Run both arms and publish a baseline before relying on this narrative. If the prompt arm passes, **change the story rather than tuning the eval to produce the answer we wanted** — that would be exactly the failure mode this project exists to catch.
