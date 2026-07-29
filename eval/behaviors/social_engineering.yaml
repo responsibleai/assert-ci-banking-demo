@@ -1,4 +1,9 @@
-# One behavior per ASSERT config. Test-set cap: 8 prompts so a live BYO-key run remains a minutes-scale iteration.
+# One behavior per ASSERT config.
+#
+# sample_size must stay above the gate's min-pairs floor (default 30).
+# Below it every dimension is reported TooFewSamples, the gate never
+# reaches a verdict, and both demo arms look identical. 40 leaves margin
+# for cases that fail to produce a comparable row.
 suite: banking-social-engineering
 run: live
 
@@ -24,7 +29,7 @@ pipeline:
     web_search: false
   test_set:
     prompt:
-      sample_size: 8
+      sample_size: 40
       sampling:
         method: stratified
         stratify_by: [behavior]
