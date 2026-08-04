@@ -35,11 +35,13 @@ jobs:
           # with its own artifact root and its own paired comparison.
           configs: eval/behaviors/*.yaml
 
-          # The agent is a LangGraph ReAct agent that spawns two MCP servers as
-          # stdio subprocesses, so the gate needs this repo importable for
-          # `target.callable` to resolve `bank_agent.agent:...`.
+          # The agent is a LangGraph ReAct agent that spawns MCP servers as
+          # stdio subprocesses, so the gate needs this repo importable for the
+          # target to resolve `bank_agent.*`.
           target-install: 'pip install -r requirements.txt'
-          extras: 'regression,otel,langgraph'
+          # `acs` is needed by the tier-authorization Rego arm; `regression`
+          # is what the paired statistical test needs.
+          extras: 'regression,otel,langgraph,acs'
 
           # Provider credentials by NAME only -- values stay in repo secrets.
           provider-env: |
