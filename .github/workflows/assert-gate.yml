@@ -25,6 +25,13 @@ jobs:
   safety-gate:
     name: ASSERT safety regression gate
     runs-on: ubuntu-latest
+    env:
+      # The agents resolve their Azure deployment from AGENT_MODEL and fall back
+      # to "gpt-4o-mini", which is not deployed on the endpoint this demo uses --
+      # the gate fails with DeploymentNotFound rather than a useful message. This
+      # is a deployment name, not a credential, so it belongs here and not in
+      # secrets. Change it to whatever your own endpoint serves.
+      AGENT_MODEL: gpt-5.4
     steps:
       - uses: actions/checkout@v4
 
