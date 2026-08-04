@@ -27,7 +27,59 @@ They were chosen because each demonstrates a *different* control mechanism — a
 Rego policy and a calibrated classifier — and because each produced a result that
 is not what you would have guessed.
 
-## What the measured runs show
+## Read the permissibility split, not `policy_violation`
+
+ASSERT splits a policy violation by the **permissibility of the behavior that was
+violated**, and treats that pair as the headline:
+
+| Metric | Reads as |
+|---|---|
+| `policy_violation_not_permissible` | **impermissible behavior violated** — the agent did something it must never do |
+| `policy_violation_permissible` | **permissible behavior violated** — the agent mishandled something it was allowed to do |
+
+`policy_violation` is the **union of both**, and `overrefusal` covers only the
+refusal-shaped subset of the permissible half, so neither answers *"did the agent
+do something it must never do?"* on its own. The split supersedes them on display
+surfaces; they are still judged and still written to artifacts.
+
+These are **derived**, not judged — computed from `verdict.node_judgments` plus the
+run's behavior taxonomy, so historical runs can be recalculated without re-judging.
+Every behavior category in this demo's taxonomies carries a `permissible` flag
+(4/4 and 5/5), which is what makes the split available here.
+
+### Why this matters, measured on this repo's own run
+
+Both behaviors, same CI run, `n=40` and `n=72`:
+
+| Behavior | impermissible violated | permissible violated | `policy_violation` (union) |
+|---|---|---|---|
+| `coercion_via_unverified_authority` | **2.5%** | 35.0% | 35.0% |
+| `sensitivity_tier_authorization` | **22.2%** | 1.4% | 22.2% |
+
+On `policy_violation` alone the two look comparable — 35% and 22%, the coercion
+behavior apparently the *worse* of the two. The split shows they are opposite in
+kind. The coercion agent almost never does the impermissible thing (**2.5%**); its
+35% is nearly all permissible-side, meaning it mishandles legitimate escalations.
+The tier-authorization agent is the reverse: essentially all of its 22.2% is
+genuinely impermissible — real authorization failures.
+
+Ranking these two by `policy_violation` would put effort on the wrong one.
+
+Reproduce it yourself from any run's artifacts — CI-downloaded or local:
+
+```bash
+python scripts/permissibility_report.py artifacts/
+```
+
+It reads `verdict.node_judgments` against the run's `taxonomy.json`, and exits
+non-zero if a violation cannot be classified, so the two halves always reconcile
+against the union rather than quietly under-counting.
+
+## What the measured runs show, by arm
+
+Arm-level figures below are `policy_violation` and the behavior's own judged
+dimensions, from the development runs. Read them with the caveat above: for the
+coercion behavior in particular, most of that number is the permissible half.
 
 ### `sensitivity_tier_authorization` — n=72 per arm
 
@@ -131,6 +183,22 @@ edit, gets switched off within a week. But it means **a green check is not proof
 the gate evaluated anything.** Read the PR comment for the verdict, and treat this
 as a regression signal rather than a compliance control.
 
+### The gate cannot use the permissibility split yet
+
+The paired test runs per *judged* dimension. The split is **derived** from
+`node_judgments` plus the taxonomy, not scored by the judge, so it never reaches
+`scores.jsonl` as a dimension and `compare_runs.py` cannot see it. The gate's
+`primary-dimension` therefore remains `policy_violation`.
+
+That is a real limitation, and this repo's own numbers show the cost: gating the
+coercion behavior on `policy_violation` gates on 35%, of which only 2.5 points are
+impermissible. A regression confined to the impermissible half — the half that
+matters — could be swamped by movement in the permissible half and never trip the
+gate, while noise in the permissible half could trip it for nothing.
+
+Until the split is a scored dimension or the gate computes it, read the split from
+the run artifacts by hand and treat the gate verdict as the coarser signal.
+
 ## Layout
 
 ```
@@ -142,6 +210,7 @@ bank_agent/
   runtime/knowledge/             the policy KB the agent retrieves from
   acs/                           ACS manifests + Rego policies
 eval/behaviors/                  one behavior per YAML
+scripts/                         permissibility_report.py - read the split from a run
 .github/workflows/               the gate
 ```
 
