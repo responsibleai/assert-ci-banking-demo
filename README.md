@@ -107,7 +107,7 @@ multi-turn agent and then judges every transcript.
 ## The gate in CI
 
 `.github/workflows/assert-gate.yml` calls
-[`changliu2/assert-ai-action@v1`](https://github.com/changliu2/assert-ai-action).
+[`responsibleai/assert-ai-action@v1`](https://github.com/responsibleai/assert-ai-action).
 It runs on pull requests that touch the agent or the evals, never on every push.
 
 Set these repository secrets first — names only, never values in the workflow:

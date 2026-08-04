@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Gate on paired safety regressions
-        uses: changliu2/assert-ai-action@v1
+        uses: responsibleai/assert-ai-action@v1
         with:
           # One behavior per YAML, so each file becomes its own gated behavior
           # with its own artifact root and its own paired comparison.
