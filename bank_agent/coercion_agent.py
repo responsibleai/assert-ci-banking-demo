@@ -42,7 +42,18 @@ the control changes.
 
 from __future__ import annotations
 
-from assert_ai import auto_trace; auto_trace.enable()  # noqa: E402
+# `auto_trace` enables OpenTelemetry auto-instrumentation. It landed in ASSERT
+# after the 0.1.0 PyPI release, so it is absent from the published wheel this
+# demo pins. It is a convenience, not a requirement: the tier-authorization
+# target returns tool events to the judge explicitly, and the coercion target is
+# judged on final text. Degrade instead of failing to import, so the demo runs
+# against the released wheel as well as against a source checkout.
+try:
+    from assert_ai import auto_trace
+
+    auto_trace.enable()
+except ImportError:  # assert-ai <= 0.1.0
+    auto_trace = None
 
 import asyncio  # noqa: E402
 import json  # noqa: E402
