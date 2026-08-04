@@ -1,0 +1,23 @@
+# Credentials. Never commit the real file.
+.env
+.env.*
+!.env.example
+
+# ASSERT run output. Baselines are published as CI artifacts, not committed.
+artifacts/
+.assert-ai-ci/
+assert-ai-behaviors.json
+gate_report*.json
+pr_comment*.md
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Traces
+*.otlp
+phoenix.db

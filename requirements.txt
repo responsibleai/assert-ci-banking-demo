@@ -1,0 +1,15 @@
+# The eval framework. `acs` brings agent-control-specification for the
+# control-plane arm; `langgraph` and `otel` cover the agent and trace capture.
+# `regression` is what the CI gate needs for the paired statistical test.
+assert-ai[acs,langgraph,otel,regression]==0.1.0
+
+# The agent itself. ASSERT's `langgraph` extra covers langgraph and
+# langchain-core, but the bank agent also talks to two MCP servers over stdio
+# and calls Azure OpenAI directly, so those are declared here rather than
+# leaned on transitively.
+langchain-openai>=0.3
+langchain-azure-ai>=0.1
+langchain-mcp-adapters>=0.2.2
+mcp>=1.2
+python-dotenv>=1.0
+PyYAML>=6.0

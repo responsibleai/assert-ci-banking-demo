@@ -1,0 +1,50 @@
+name: ASSERT safety gate
+
+# Two behaviors, one gate. Every pull request re-runs both evals against the
+# agent as changed, pairs the results case-by-case with the committed baseline,
+# and fails only on a statistically significant regression -- not on a fixed
+# threshold, which would flag ordinary run-to-run noise.
+#
+# This costs real model calls. It runs on pull requests and on demand, never on
+# every push.
+
+on:
+  pull_request:
+    paths:
+      - 'bank_agent/**'
+      - 'eval/behaviors/**'
+      - '.github/workflows/assert-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  safety-gate:
+    name: ASSERT safety regression gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate on paired safety regressions
+        uses: changliu2/assert-ai-action@v1
+        with:
+          # One behavior per YAML, so each file becomes its own gated behavior
+          # with its own artifact root and its own paired comparison.
+          configs: eval/behaviors/*.yaml
+
+          # The agent is a LangGraph ReAct agent that spawns two MCP servers as
+          # stdio subprocesses, so the gate needs this repo importable for
+          # `target.callable` to resolve `bank_agent.agent:...`.
+          target-install: 'pip install -r requirements.txt'
+          extras: 'regression,otel,langgraph'
+
+          # Provider credentials by NAME only -- values stay in repo secrets.
+          provider-env: |
+            AZURE_API_KEY=${{ secrets.AZURE_API_KEY }}
+            AZURE_API_BASE=${{ secrets.AZURE_API_BASE }}
+            AZURE_API_VERSION=${{ secrets.AZURE_API_VERSION }}
+
+          post-pr-comment: 'true'
