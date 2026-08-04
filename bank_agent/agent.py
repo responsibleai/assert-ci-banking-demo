@@ -66,7 +66,7 @@ except ImportError:  # pragma: no cover
     AgentControlBlocked = Exception  # type: ignore[assignment]
     EnforcementMode = None  # type: ignore[assignment]
     _ACS_AVAILABLE = False
-    for _imp in ("acs_shim", "examples.bank_manager_agent_control.runtime.acs_shim"):
+    for _imp in ("acs_shim", "bank_agent.runtime.acs_shim", "examples.bank_manager_agent_control.runtime.acs_shim"):
         try:
             _m = __import__(_imp, fromlist=["AgentControl"])
             AgentControl = _m.AgentControl
