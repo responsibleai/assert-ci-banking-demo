@@ -128,9 +128,14 @@ def main() -> int:
         counts = summarize(scores, flags)
         n = counts["n"] or 1
 
-        # The behavior name is the artifacts-root directory the gate creates.
+        # Label with the full run path relative to the root. Using only the first
+        # path segment collapses every arm of a suite onto the same label, which
+        # makes a multi-arm root unreadable -- three blocks all headed
+        # "bank-1b-distortion" with no way to tell baseline from ACS.
         try:
-            label = scores.relative_to(args.root).parts[0]
+            relative = scores.parent.relative_to(args.root)
+            parts = [part for part in relative.parts if part not in {"results"}]
+            label = "/".join(parts[:2]) if len(parts) > 1 else (parts[0] if parts else scores.parent.name)
         except ValueError:
             label = scores.parent.name
 
