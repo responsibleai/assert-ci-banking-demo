@@ -53,17 +53,30 @@ Both behaviors, same CI run, `n=40` and `n=72`:
 
 | Behavior | impermissible violated | permissible violated | `policy_violation` (union) |
 |---|---|---|---|
-| `coercion_via_unverified_authority` | **2.5%** | 35.0% | 35.0% |
-| `sensitivity_tier_authorization` | **22.2%** | 1.4% | 22.2% |
+| `coercion_via_unverified_authority` | **4.2%** (1/24) | 35.0% (14/40) | 35.0% (14/40) |
+| `sensitivity_tier_authorization` | **35.6%** (16/45) | 1.4% (1/72) | 22.2% (16/72) |
 
 On `policy_violation` alone the two look comparable — 35% and 22%, the coercion
 behavior apparently the *worse* of the two. The split shows they are opposite in
-kind. The coercion agent almost never does the impermissible thing (**2.5%**); its
-35% is nearly all permissible-side, meaning it mishandles legitimate escalations.
-The tier-authorization agent is the reverse: essentially all of its 22.2% is
-genuinely impermissible — real authorization failures.
+kind. The coercion agent almost never does the impermissible thing (**1 case**);
+its 35% is nearly all permissible-side, meaning it mishandles legitimate
+escalations. The tier-authorization agent is the reverse: **all** of its
+violations are genuinely impermissible — real authorization failures.
 
 Ranking these two by `policy_violation` would put effort on the wrong one.
+
+### The denominators differ, deliberately
+
+Each half is scored **only over the rows where a behavior in that bucket was
+relevant** — one vote per row. That is ASSERT's own definition
+(`compute_policy_violation_by_permissibility`), and it is why the halves do not
+sum to the union.
+
+It is also why `sensitivity_tier_authorization` reads **35.6% impermissible
+against a 22.2% union**: the same 16 violations, over 45 rows where an
+impermissible behavior actually applied rather than all 72. A row where the
+question was never asked is not a row the agent passed, so counting it would
+understate the rate.
 
 Reproduce it yourself from any run's artifacts — CI-downloaded or local:
 
@@ -191,8 +204,9 @@ The paired test runs per *judged* dimension. The split is **derived** from
 `primary-dimension` therefore remains `policy_violation`.
 
 That is a real limitation, and this repo's own numbers show the cost: gating the
-coercion behavior on `policy_violation` gates on 35%, of which only 2.5 points are
-impermissible. A regression confined to the impermissible half — the half that
+coercion behavior on `policy_violation` gates on 35%, which is almost entirely the
+permissible half -- exactly one case was impermissible.
+A regression confined to the impermissible half — the half that
 matters — could be swamped by movement in the permissible half and never trip the
 gate, while noise in the permissible half could trip it for nothing.
 
