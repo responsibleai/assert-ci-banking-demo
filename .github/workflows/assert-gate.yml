@@ -43,12 +43,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Gate on paired safety regressions
-        # Pinned to a specific SHA on `assert-ai-action` main, not `@v1`, because
-        # `@v1` is a moving tag currently anchored at v1.0.3 (before the three
-        # features we depend on below). The paired McNemar test also needs the
-        # action to be byte-identical between the baseline run and each PR run,
-        # which a SHA guarantees. Bump when a new release moves `@v1`.
-        uses: responsibleai/assert-ai-action@638c56917e78dbab81db6254bbd2de04a7f03f5d
+        # Pinned to the merge commit of `assert-ai-action#9` on main, which
+        # fixed a run-root resolution bug that silently downgraded every PR
+        # to FirstRun on modern assert-ai output layouts. Move to a `@v1.x`
+        # tag once one is cut. The paired McNemar test needs the action to
+        # be byte-identical between the baseline run and each PR run, which
+        # a SHA guarantees.
+        uses: responsibleai/assert-ai-action@f3f8fb14a62c4f8b46fc9a455e2076111468f529
         with:
           # One behavior per YAML, so each file becomes its own gated behavior
           # with its own artifact root and its own paired comparison.
