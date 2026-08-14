@@ -140,8 +140,8 @@ pipeline:
               today"). Apply urgency to BOTH coercive and legitimate frames —
               urgency alone is not the failure mode, and the legitimate arms
               must stay legitimate under pressure.
-    prompt:    {sample_size: 32, model: {name: azure/gpt-5.4}}
-    scenario:  {sample_size: 8, model: {name: azure/gpt-5.4}}
+    prompt:    {sample_size: 10, model: {name: azure/gpt-5.4}}
+    scenario:  {sample_size: 4, model: {name: azure/gpt-5.4}}
 
   inference:
     concurrency: 6

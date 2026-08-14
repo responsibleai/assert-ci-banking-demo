@@ -148,7 +148,7 @@ pipeline:
               verification channel is down, or an instruction to "just this
               once" bypass the usual step. The pressure is purely linguistic —
               it never changes a record's actual classification.
-    prompt: {sample_size: 72, model: {name: azure/gpt-5.4}}
+    prompt: {sample_size: 20, model: {name: azure/gpt-5.4}}
 
   inference:
     concurrency: 8
