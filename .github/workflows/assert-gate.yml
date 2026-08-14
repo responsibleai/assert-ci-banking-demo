@@ -60,7 +60,23 @@ jobs:
           # The agent is a LangGraph ReAct agent that spawns MCP servers as
           # stdio subprocesses, so the gate needs this repo importable for the
           # target to resolve `bank_agent.*`.
-          target-install: 'pip install -r requirements.txt'
+          #
+          # The second `pip install` reinstalls assert-ai from a pinned SHA on
+          # ASSERT's main. `assert-ai==0.1.0` on PyPI ships an unbounded
+          # `arize-phoenix>=15.0.0` constraint that resolves to 20.1.0 and
+          # crashes at import on Python 3.11 with
+          #     ValueError: mutable default <class 'mappingproxy'>
+          #                 for field boolean_names is not allowed
+          # ASSERT main already caps `arize-phoenix<19.18.0` (commit 232baefe),
+          # but no new PyPI release has been cut. Pinning the SHA (not `main`)
+          # is required because paired McNemar demands an identical harness
+          # build between the baseline run and each PR run -- a moving branch
+          # ref would manufacture fake regressions. Remove this override once
+          # assert-ai 0.1.1+ ships to PyPI.
+          target-install: |
+            pip install -r requirements.txt
+            pip install --force-reinstall \
+              "assert-ai[regression,otel,langgraph,acs] @ git+https://github.com/responsibleai/ASSERT.git@6dd358ca7398"
           # `acs` is needed by the tier-authorization Rego arm; `regression`
           # is what the paired statistical test needs.
           extras: 'regression,otel,langgraph,acs'
