@@ -5,11 +5,18 @@ name: ASSERT safety gate
 # and fails only on a statistically significant regression -- not on a fixed
 # threshold, which would flag ordinary run-to-run noise.
 #
-# This costs real model calls. It runs on pull requests and on demand, never on
-# every push.
+# This costs real model calls. It runs on pull requests, on merges to main,
+# and on demand -- never on every push to a feature branch. The merges-to-main
+# run is what publishes the trusted baseline the next PR compares against.
 
 on:
   pull_request:
+    paths:
+      - 'bank_agent/**'
+      - 'eval/behaviors/**'
+      - '.github/workflows/assert-gate.yml'
+  push:
+    branches: [main]
     paths:
       - 'bank_agent/**'
       - 'eval/behaviors/**'
@@ -42,6 +49,14 @@ jobs:
           # with its own artifact root and its own paired comparison.
           configs: eval/behaviors/*.yaml
 
+          # Baseline lookup: the action searches the most recent successful run
+          # on `baseline-branch` for a live artifact named `assert-ai-baseline`
+          # and downloads it as this PR's paired comparator. The uploader is
+          # the second step below -- both halves are required. Without them,
+          # every run is a FirstRun and the gate never actually gates.
+          baseline: assert-ai-baseline
+          baseline-branch: main
+
           # The agent is a LangGraph ReAct agent that spawns MCP servers as
           # stdio subprocesses, so the gate needs this repo importable for the
           # target to resolve `bank_agent.*`.
@@ -57,3 +72,17 @@ jobs:
             AZURE_API_VERSION=${{ secrets.AZURE_API_VERSION }}
 
           post-pr-comment: 'true'
+
+      # Publish the trusted baseline only on non-PR events. A PR must not be
+      # able to overwrite the baseline it is compared against, so this step is
+      # deliberately skipped for `pull_request`. The 90-day retention window
+      # matches what a stable-cadence project needs before its next baseline
+      # run naturally supersedes this one.
+      - name: Publish baseline artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: assert-ai-baseline
+          path: assert-ai-artifacts/
+          retention-days: 90
+
