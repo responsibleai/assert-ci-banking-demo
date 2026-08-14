@@ -5,11 +5,18 @@ name: ASSERT safety gate
 # and fails only on a statistically significant regression -- not on a fixed
 # threshold, which would flag ordinary run-to-run noise.
 #
-# This costs real model calls. It runs on pull requests and on demand, never on
-# every push.
+# This costs real model calls. It runs on pull requests, on merges to main,
+# and on demand -- never on every push to a feature branch. The merges-to-main
+# run is what publishes the trusted baseline the next PR compares against.
 
 on:
   pull_request:
+    paths:
+      - 'bank_agent/**'
+      - 'eval/behaviors/**'
+      - '.github/workflows/assert-gate.yml'
+  push:
+    branches: [main]
     paths:
       - 'bank_agent/**'
       - 'eval/behaviors/**'
@@ -36,11 +43,43 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Gate on paired safety regressions
-        uses: responsibleai/assert-ai-action@v1
+        # Pinned to the tip of `assert-ai-action` PR #10's branch, which fixes
+        # a cache-warming gap that silently kept every paired dispatch stuck
+        # on TestSetChanged (see #10 body for the two-part diagnosis).
+        # Move to the merge SHA once #10 lands on main; move to a `@v1.x`
+        # tag once one is cut. The paired McNemar test needs the action to
+        # be byte-identical between the baseline run and each PR run, which
+        # a SHA guarantees.
+        uses: responsibleai/assert-ai-action@d5efa77e76cb104aae1506fc2ec3f7a3d670ad89
         with:
           # One behavior per YAML, so each file becomes its own gated behavior
           # with its own artifact root and its own paired comparison.
           configs: eval/behaviors/*.yaml
+
+          # Baseline lookup: the action searches the most recent successful run
+          # on the resolved baseline branch for a live artifact named
+          # `assert-ai-baseline` and downloads it as this PR's paired comparator.
+          # The uploader is the second step below -- both halves are required.
+          # Without them, every run is a FirstRun and the gate never gates.
+          baseline: assert-ai-baseline
+          # baseline-branch: (omitted) The action's event-aware default resolves
+          # to `github.base_ref` on `pull_request` (correct target-branch
+          # lineage) and `github.ref_name` on `push` / `workflow_dispatch` (so a
+          # `workflow_dispatch` on this PR branch uploads AND finds a baseline
+          # scoped to the same branch, enabling pre-merge validation). An
+          # explicit value would override this; leave it unset while testing.
+
+          # Install assert-ai from a pinned SHA on ASSERT main. `assert-ai==0.1.0`
+          # on PyPI ships an unbounded `arize-phoenix>=15.0.0` that resolves to
+          # 20.1.0 and crashes at import on Python 3.11 with
+          #     ValueError: mutable default <class 'mappingproxy'>
+          #                 for field boolean_names is not allowed
+          # ASSERT main caps `arize-phoenix<19.18.0` (commit 232baefe), but no
+          # new PyPI release has been cut. Pin a SHA, not `main`, because paired
+          # McNemar demands an identical harness build between the baseline run
+          # and each PR run. Remove this override once `assert-ai==0.1.1+` ships
+          # to PyPI, and pin `assert-ai-version` instead.
+          assert-ai-ref: 6dd358ca7398
 
           # The agent is a LangGraph ReAct agent that spawns MCP servers as
           # stdio subprocesses, so the gate needs this repo importable for the
@@ -50,6 +89,11 @@ jobs:
           # is what the paired statistical test needs.
           extras: 'regression,otel,langgraph,acs'
 
+          # 30 minutes is comfortably over the expected ~5-10 min for a
+          # 2-behavior suite; a real hang trips the cap quickly instead of
+          # burning the full default (90). Bump when adding behaviors.
+          run-timeout-minutes: '30'
+
           # Provider credentials by NAME only -- values stay in repo secrets.
           provider-env: |
             AZURE_API_KEY=${{ secrets.AZURE_API_KEY }}
@@ -57,3 +101,17 @@ jobs:
             AZURE_API_VERSION=${{ secrets.AZURE_API_VERSION }}
 
           post-pr-comment: 'true'
+
+      # Publish the trusted baseline only on non-PR events. A PR must not be
+      # able to overwrite the baseline it is compared against, so this step is
+      # deliberately skipped for `pull_request`. The 90-day retention window
+      # matches what a stable-cadence project needs before its next baseline
+      # run naturally supersedes this one.
+      - name: Publish baseline artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: assert-ai-baseline
+          path: assert-ai-artifacts/
+          retention-days: 90
+
