@@ -43,43 +43,54 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Gate on paired safety regressions
-        uses: responsibleai/assert-ai-action@v1
+        # Pinned to a specific SHA on `assert-ai-action` main, not `@v1`, because
+        # `@v1` is a moving tag currently anchored at v1.0.3 (before the three
+        # features we depend on below). The paired McNemar test also needs the
+        # action to be byte-identical between the baseline run and each PR run,
+        # which a SHA guarantees. Bump when a new release moves `@v1`.
+        uses: responsibleai/assert-ai-action@638c56917e78dbab81db6254bbd2de04a7f03f5d
         with:
           # One behavior per YAML, so each file becomes its own gated behavior
           # with its own artifact root and its own paired comparison.
           configs: eval/behaviors/*.yaml
 
           # Baseline lookup: the action searches the most recent successful run
-          # on `baseline-branch` for a live artifact named `assert-ai-baseline`
-          # and downloads it as this PR's paired comparator. The uploader is
-          # the second step below -- both halves are required. Without them,
-          # every run is a FirstRun and the gate never actually gates.
+          # on the resolved baseline branch for a live artifact named
+          # `assert-ai-baseline` and downloads it as this PR's paired comparator.
+          # The uploader is the second step below -- both halves are required.
+          # Without them, every run is a FirstRun and the gate never gates.
           baseline: assert-ai-baseline
-          baseline-branch: main
+          # baseline-branch: (omitted) The action's event-aware default resolves
+          # to `github.base_ref` on `pull_request` (correct target-branch
+          # lineage) and `github.ref_name` on `push` / `workflow_dispatch` (so a
+          # `workflow_dispatch` on this PR branch uploads AND finds a baseline
+          # scoped to the same branch, enabling pre-merge validation). An
+          # explicit value would override this; leave it unset while testing.
+
+          # Install assert-ai from a pinned SHA on ASSERT main. `assert-ai==0.1.0`
+          # on PyPI ships an unbounded `arize-phoenix>=15.0.0` that resolves to
+          # 20.1.0 and crashes at import on Python 3.11 with
+          #     ValueError: mutable default <class 'mappingproxy'>
+          #                 for field boolean_names is not allowed
+          # ASSERT main caps `arize-phoenix<19.18.0` (commit 232baefe), but no
+          # new PyPI release has been cut. Pin a SHA, not `main`, because paired
+          # McNemar demands an identical harness build between the baseline run
+          # and each PR run. Remove this override once `assert-ai==0.1.1+` ships
+          # to PyPI, and pin `assert-ai-version` instead.
+          assert-ai-ref: 6dd358ca7398
 
           # The agent is a LangGraph ReAct agent that spawns MCP servers as
           # stdio subprocesses, so the gate needs this repo importable for the
           # target to resolve `bank_agent.*`.
-          #
-          # The second `pip install` reinstalls assert-ai from a pinned SHA on
-          # ASSERT's main. `assert-ai==0.1.0` on PyPI ships an unbounded
-          # `arize-phoenix>=15.0.0` constraint that resolves to 20.1.0 and
-          # crashes at import on Python 3.11 with
-          #     ValueError: mutable default <class 'mappingproxy'>
-          #                 for field boolean_names is not allowed
-          # ASSERT main already caps `arize-phoenix<19.18.0` (commit 232baefe),
-          # but no new PyPI release has been cut. Pinning the SHA (not `main`)
-          # is required because paired McNemar demands an identical harness
-          # build between the baseline run and each PR run -- a moving branch
-          # ref would manufacture fake regressions. Remove this override once
-          # assert-ai 0.1.1+ ships to PyPI.
-          target-install: |
-            pip install -r requirements.txt
-            pip install --force-reinstall \
-              "assert-ai[regression,otel,langgraph,acs] @ git+https://github.com/responsibleai/ASSERT.git@6dd358ca7398"
+          target-install: 'pip install -r requirements.txt'
           # `acs` is needed by the tier-authorization Rego arm; `regression`
           # is what the paired statistical test needs.
           extras: 'regression,otel,langgraph,acs'
+
+          # 30 minutes is comfortably over the expected ~5-10 min for a
+          # 2-behavior suite; a real hang trips the cap quickly instead of
+          # burning the full default (90). Bump when adding behaviors.
+          run-timeout-minutes: '30'
 
           # Provider credentials by NAME only -- values stay in repo secrets.
           provider-env: |
