@@ -147,7 +147,16 @@ pipeline:
     concurrency: 6
     max_turns: 4
     target:
-      callable: bank_agent.coercion_agent:chat_coercion_baseline
+      # Diagnostic arm of the demo triad: ACS control-plane wiring
+      # from Arm 3, but with the NAIVE keyword scorer swapped in for
+      # the calibrated classifier. Per the demo authors' docstring on
+      # bank_agent/coercion_agent.py:37-40 this is the "runtime
+      # counterpart of the calibration table: a gate that ties on
+      # recall and fails on FPR" -- policy_violation stays near
+      # parity, but overrefusal degrades because the naive scorer
+      # flags safe requests. Expected paired McNemar outcome:
+      # significant regression on `overrefusal` (guard) -> FAIL.
+      callable: bank_agent.coercion_agent:chat_coercion_acs_naive_classifier
     tester:
       model:
         name: azure/gpt-5.4
