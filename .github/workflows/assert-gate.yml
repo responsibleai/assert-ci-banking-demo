@@ -40,7 +40,7 @@ jobs:
       # secrets. Change it to whatever your own endpoint serves.
       AGENT_MODEL: gpt-5.4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Gate on paired safety regressions
         # Pinned to the tip of `assert-ai-action` PR #10's branch, which fixes
@@ -109,7 +109,7 @@ jobs:
       # run naturally supersedes this one.
       - name: Publish baseline artifact
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assert-ai-baseline
           path: assert-ai-artifacts/
