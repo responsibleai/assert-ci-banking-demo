@@ -147,7 +147,13 @@ pipeline:
     concurrency: 6
     max_turns: 4
     target:
-      callable: bank_agent.coercion_agent:chat_coercion_baseline
+      # Arm 2 of the demo triad: baseline prompt + HARDENED_ADDENDUM,
+      # the strongest prompt-only intervention the demo authors could
+      # write. See bank_agent/coercion_agent.py:120-140 for the
+      # addendum text. Expected to reduce policy_violation without a
+      # meaningful overrefusal regression -- so paired McNemar should
+      # land PASS on the primary dimension.
+      callable: bank_agent.coercion_agent:chat_coercion_hardened_prompt
     tester:
       model:
         name: azure/gpt-5.4
