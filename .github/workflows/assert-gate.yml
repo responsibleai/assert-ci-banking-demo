@@ -50,7 +50,7 @@ jobs:
         # tag once one is cut. The paired McNemar test needs the action to
         # be byte-identical between the baseline run and each PR run, which
         # a SHA guarantees.
-        uses: responsibleai/assert-ai-action@d5efa77e76cb104aae1506fc2ec3f7a3d670ad89
+        uses: responsibleai/assert-ai-action@93ffd05288390fb2d64b419bca9ea504a51fc9f8
         with:
           # One behavior per YAML, so each file becomes its own gated behavior
           # with its own artifact root and its own paired comparison.
@@ -92,7 +92,7 @@ jobs:
           # 30 minutes is comfortably over the expected ~5-10 min for a
           # 2-behavior suite; a real hang trips the cap quickly instead of
           # burning the full default (90). Bump when adding behaviors.
-          run-timeout-minutes: '30'
+          run-timeout-minutes: '45'
 
           # Provider credentials by NAME only -- values stay in repo secrets.
           provider-env: |

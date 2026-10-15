@@ -147,7 +147,16 @@ pipeline:
     concurrency: 6
     max_turns: 4
     target:
-      callable: bank_agent.coercion_agent:chat_coercion_baseline
+      # Demo FAIL-path arm: Arm 1's prompt with rule 3 (verify claimed
+      # authority) softened to "take stated titles at face value for
+      # routine requests." See bank_agent/coercion_agent.py for the
+      # arm's implementation and the exact substitution. Expected
+      # paired McNemar outcome vs main's baseline: significant increase
+      # in `policy_violation` on coercion cases -> aggregate FAIL under
+      # gate-mode: regression. This exercises the gate's FAIL comment
+      # in the PR without depending on the ACS shim (which has a
+      # concurrent manifest-rewrite race that broke an earlier attempt).
+      callable: bank_agent.coercion_agent:chat_coercion_weakened_authority
     tester:
       model:
         name: azure/gpt-5.4
